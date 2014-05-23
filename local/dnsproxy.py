@@ -132,6 +132,7 @@ def dnslib_resolve_over_udp(query, dnsservers, timeout, **kwargs):
         raise TypeError('query argument requires string/DNSRecord')
     if isinstance(query, basestring):
         query = dnslib.DNSRecord(q=dnslib.DNSQuestion(query))
+    qname = str(query.q.qname).lower()
     blacklist = kwargs.get('blacklist', ())
     turstservers = kwargs.get('turstservers', ())
     query_data = query.pack()
@@ -160,19 +161,19 @@ def dnslib_resolve_over_udp(query, dnsservers, timeout, **kwargs):
                         record = dnslib.DNSRecord.parse(reply_data)
                         iplist = [str(x.rdata) for x in record.rr if x.rtype in (1, 28, 255)]
                         if any(x in blacklist for x in iplist):
-                            logging.warning('query=%r dnsservers=%r record bad iplist=%r', query, dnsservers, iplist)
+                            logging.warning('query qname=%r dnsservers=%r record bad iplist=%r', qname, dnsservers, iplist)
                         elif record.header.rcode and not iplist and reply_server in turstservers:
-                            logging.info('query=%r trust reply_server=%r record rcode=%s', query, reply_server, record.header.rcode)
+                            logging.info('query qname=%r trust reply_server=%r record rcode=%s', qname, reply_server, record.header.rcode)
                             return record
                         elif iplist:
-                            logging.debug('query=%r reply_server=%r record iplist=%s', query, reply_server, iplist)
+                            logging.debug('query qname=%r reply_server=%r record iplist=%s', qname, reply_server, iplist)
                             return record
                         else:
-                            logging.debug('query=%r reply_server=%r record null iplist=%s', query, reply_server, iplist)
+                            logging.debug('query qname=%r reply_server=%r record null iplist=%s', qname, reply_server, iplist)
                             continue
             except socket.error as e:
-                logging.warning('handle dns query=%s socket: %r', query, e)
-        raise socket.gaierror(11004, 'getaddrinfo %r from %r failed' % (query, dnsservers))
+                logging.warning('handle dns query qname=%s socket: %r', qname, e)
+        raise socket.gaierror(11004, 'getaddrinfo %r from %r failed' % (qname, dnsservers))
     finally:
         for sock in socks:
             sock.close()
@@ -184,6 +185,7 @@ def dnslib_resolve_over_tcp(query, dnsservers, timeout, **kwargs):
         raise TypeError('query argument requires string/DNSRecord')
     if isinstance(query, basestring):
         query = dnslib.DNSRecord(q=dnslib.DNSQuestion(query))
+    qname = str(query.q.qname).lower()
     blacklist = kwargs.get('blacklist', ())
     def do_resolve(query, dnsserver, timeout, queobj):
         query_data = query.pack()
@@ -197,18 +199,18 @@ def dnslib_resolve_over_tcp(query, dnsservers, timeout, **kwargs):
             rfile = sock.makefile('r', 1024)
             reply_data_length = rfile.read(2)
             if len(reply_data_length) < 2:
-                raise socket.gaierror(11004, 'getaddrinfo %r from %r failed' % (query, dnsserver))
+                raise socket.gaierror(11004, 'getaddrinfo %r from %r failed' % (qname, dnsserver))
             reply_data = rfile.read(struct.unpack('>h', reply_data_length)[0])
             record = dnslib.DNSRecord.parse(reply_data)
             iplist = [str(x.rdata) for x in record.rr if x.rtype in (1, 28, 255)]
             if any(x in blacklist for x in iplist):
-                logging.debug('query=%r dnsserver=%r record bad iplist=%r', query, dnsserver, iplist)
-                raise socket.gaierror(11004, 'getaddrinfo %r from %r failed' % (query, dnsserver))
+                logging.debug('query qname=%r dnsserver=%r record bad iplist=%r', qname, dnsserver, iplist)
+                raise socket.gaierror(11004, 'getaddrinfo %r from %r failed' % (qname, dnsserver))
             else:
-                logging.debug('query=%r dnsserver=%r record iplist=%s', query, dnsserver, iplist)
+                logging.debug('query qname=%r dnsserver=%r record iplist=%s', qname, dnsserver, iplist)
                 queobj.put(record)
         except socket.error as e:
-            logging.debug('query=%r dnsserver=%r failed %r', query, dnsserver, e)
+            logging.debug('query qname=%r dnsserver=%r failed %r', qname, dnsserver, e)
             queobj.put(e)
         finally:
             if rfile:
@@ -221,12 +223,12 @@ def dnslib_resolve_over_tcp(query, dnsservers, timeout, **kwargs):
         try:
             result = queobj.get(timeout)
         except Queue.Empty:
-            raise socket.gaierror(11004, 'getaddrinfo %r from %r failed' % (query, dnsservers))
+            raise socket.gaierror(11004, 'getaddrinfo %r from %r failed' % (qname, dnsservers))
         if result and not isinstance(result, Exception):
             return result
         elif i == len(dnsservers) - 1:
-            logging.warning('dnslib_resolve_over_tcp %r with %s return %r', query, dnsservers, result)
-    raise socket.gaierror(11004, 'getaddrinfo %r from %r failed' % (query, dnsservers))
+            logging.warning('dnslib_resolve_over_tcp %r with %s return %r', qname, dnsservers, result)
+    raise socket.gaierror(11004, 'getaddrinfo %r from %r failed' % (qname, dnsservers))
 
 
 class DNSServer(gevent.server.DatagramServer):
