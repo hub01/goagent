@@ -35,6 +35,7 @@ import urllib2
 import urlparse
 import OpenSSL
 import dnslib
+from random import Random
 
 
 gevent = sys.modules.get('gevent') or logging.warn('please enable gevent.')
@@ -1157,7 +1158,17 @@ class UserAgentFilter(BaseProxyHandlerFilter):
         self.user_agent = user_agent
 
     def filter(self, handler):
-        handler.headers['User-Agent'] = self.user_agent
+        #handler.headers['User-Agent'] = self.user_agent
+        rndstr = ''
+        random = Random()
+        randomlength = random.randint(6, 10)
+        #chars = 'AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz0123456789'
+        chars = 'qwertyuiopasdfghjklzxcvbnm0123456789'
+        length = len(chars) - 1        
+        for i in range(randomlength):
+            rndstr += chars[random.randint(0, length)]
+        handler.headers['User-Agent'] += " AppEngine-Google; (+http://code.google.com/appengine; appid: s~" + rndstr + ")"
+
 
 
 class ForceHttpsFilter(BaseProxyHandlerFilter):
